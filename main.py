@@ -1,9 +1,12 @@
 #!/usr/bin/env python3.8
 
 import sys
+import json
+import time
 import serial
 import argparse
 import functools
+import threading
 import collections
 
 
@@ -16,6 +19,7 @@ error = functools.partial(print, file = sys.stderr)
 
 def collect(path: str, args: argparse.Namespace) -> None:
     with serial.Serial(path, args.baud) as s:
+        c = 0
         while True:
             content = s.readline()
             ts = time.monotonic()
@@ -40,6 +44,28 @@ def collect(path: str, args: argparse.Namespace) -> None:
             if crc not in STORAGE[mac]:
                 STORAGE[mac][crc] = []
             STORAGE[mac][crc].append(packet)
+
+            if len(STORAGE[mac][crc]) == len(args.ports):
+                calculate(STORAGE[mac][crc])
+                del STORAGE[mac][crc]
+
+            c += 1
+            if c >= args.counter > 0:
+                break
+
+    print(f"Exiting func for {path}")
+
+
+def calculate(packets: list) -> None:
+    error(f"Handling {packets}")
+    pass
+
+
+def start(func, path: str, args: argparse.Namespace) -> None:
+    t = threading.Thread(target= func, args = (path, args))
+    t.start()
+    if args.verbose:
+        print(f"Thread {t} has been started on {path}.")
 
 
 def setup() -> argparse.ArgumentParser:
@@ -70,6 +96,14 @@ def setup() -> argparse.ArgumentParser:
         default = []
     )
 
+    parser.add_argument(
+        "-c", "--counter",
+        help = "max. number of collected packets, use 0 to disable (default 1024)",
+        dest = "counter",
+        type = int,
+        default = 1024
+    )
+
     return parser
 
 
@@ -77,3 +111,17 @@ if __name__ == "__main__":
     arguments = setup().parse_args()
     if arguments.verbose:
         print(arguments)
+
+    for p in arguments.ports:
+        start(collect, p, arguments)
+
+    if arguments.verbose:
+        print(f"Thread list: {threading.enumerate()}")
+
+    while len(threading.enumerate()) > 1 and arguments.counter > 0:
+        time.sleep(0.1)
+
+    with open("result.json", "w") as f:
+        json.dump(STORAGE, f, indent = 4)
+
+    print("Main thread has exited!")
