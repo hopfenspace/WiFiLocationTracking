@@ -104,6 +104,12 @@ def setup() -> argparse.ArgumentParser:
         default = 1024
     )
 
+    parser.add_argument(
+        "-j", "--json",
+        help = "path to the JSON file to store the resulting data",
+        dest = "json"
+    )
+
     return parser
 
 
@@ -121,7 +127,8 @@ if __name__ == "__main__":
     while len(threading.enumerate()) > 1 and arguments.counter > 0:
         time.sleep(0.1)
 
-    with open("result.json", "w") as f:
-        json.dump(STORAGE, f, indent = 4)
+    if arguments.json is not None:
+        with open(arguments.json, "w") as f:
+            json.dump(STORAGE, f, indent = 4)
 
     print("Main thread has exited!")
