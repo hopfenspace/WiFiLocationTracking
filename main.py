@@ -14,8 +14,10 @@ import socketserver
 import serial
 
 STORAGE = {}
+deviceLocations = {}
 
 Packet = collections.namedtuple("Packet", ["rssi", "timestamp", "port"])
+Device = collections.namedtuple("Device", ["mac", "x", "y", "count"])
 
 error = functools.partial(print, file=sys.stderr)
 
@@ -50,7 +52,7 @@ def add_packet(line: bytes, args: argparse.Namespace, name: str) -> typing.Optio
         STORAGE[mac][crc].append(packet)
 
         if len(STORAGE[mac][crc]) == len(args.ports):
-            calculate(STORAGE[mac][crc])
+            calculate(mac, STORAGE[mac][crc], args)
             del STORAGE[mac][crc]
 
     except:
@@ -92,11 +94,31 @@ def collect(path: str, args: argparse.Namespace) -> None:
 
     print(f"Exiting func for {path}")
 
+def calculate(mac: str, packets: list, args: argparse.Namespace) -> None:
+    if len(packets) != 3:
+        print(f"calculating a position is currently only implemented with 3 receivers")
 
-def calculate(packets: list) -> None:
-    error(f"Handling {packets}")
-    pass
+    p1, p2, p3 = packets
+    rssi1 = p1.rssi
+    rssi2 = p2.rssi
+    rssi3 = p3.rssi
 
+    f12 = rssi1 / (rssi1 + rssi2)
+    f23 = rssi2 / (rssi2 + rssi3)
+
+    # device 0 at 0, 0
+    # device 1 at args.distance, 0
+    # device 2 at args.distance, args.distance
+    x = f12 * args.distance
+    y = f23 * args.distance
+
+    count = 1
+    if mac in deviceLocations:
+        count = deviceLocations[mac].count + 1
+    deviceLocations[mac] = Device(mac, x, y, count)
+
+    if args.verbose:
+        print(f"device {mac} is at {x} {y}")
 
 def start(func, path: str, args: argparse.Namespace) -> None:
     t = threading.Thread(target=func, args=(path, args), daemon=True)
@@ -139,6 +161,14 @@ def setup() -> argparse.ArgumentParser:
         dest="ports",
         action="append",
         default=[]
+    )
+
+    parser.add_argument(
+        "-d", "--distance",
+        help="specify the distance of the ",
+        dest="distance",
+        type=int,
+        default=10
     )
 
     parser.add_argument(
