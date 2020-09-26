@@ -4,9 +4,11 @@ import sys
 import json
 import time
 import serial
+import typing
 import argparse
 import functools
 import threading
+import traceback
 import collections
 import socketserver
 
@@ -18,48 +20,71 @@ Packet = collections.namedtuple("Packet", ["rssi", "timestamp", "port"])
 error = functools.partial(print, file = sys.stderr)
 
 
+def add_packet(line: bytes, args: argparse.Namespace, name: str) -> typing.Optional[Packet]:
+    ts = time.monotonic()
+    mac, rssi, crc = line.rstrip().decode("ASCII").split(" ")
+
+    while len(crc) < 8:
+        crc = "0" + crc
+
+    try:
+        rssi = int(rssi)
+    except ValueError as exc:
+        error(f"ValueError: {exc}")
+    if len(mac) != 17:
+        error(f"Dropping weird packet from MAC {mac}!")
+
+    if len(args.filters) > 0:
+        if mac not in args.filters:
+            return
+
+    packet = Packet(rssi = rssi, timestamp = ts, port = name)
+    if args.verbose:
+        print(f"{mac}: {rssi} ({crc}) @ {ts:.6f}")
+
+    if mac not in STORAGE:
+        STORAGE[mac] = {}
+    if crc not in STORAGE[mac]:
+        STORAGE[mac][crc] = []
+    STORAGE[mac][crc].append(packet)
+
+    if len(STORAGE[mac][crc]) == len(args.ports):
+        calculate(STORAGE[mac][crc])
+        del STORAGE[mac][crc]
+
+
 class TCPCollectionHandler(socketserver.BaseRequestHandler):
     """
     The request handler class to collect data via network streams
     """
 
-    def handle(self):
-        pass
+    args = None
+
+    def handle_one(self):
+        print("{} wrote:".format(self.client_address[0]))
+        data = b" "
+        while b"\n" not in data:
+            print(f"'{data}'")
+            data += self.request.recv(8192)
+        data = data.strip()
+        print(f"\n\nFinal: '{data}'")
+
+        try:
+            add_packet(data, TCPCollectionHandler.args, str(self.server.server_address))
+        except ValueError:
+            traceback.print_exc(file = sys.stderr)
+
+    def handle(self) -> None:
+        while True:
+            self.handle_one()
+
+
 def collect(path: str, args: argparse.Namespace) -> None:
     with serial.Serial(path, args.baud) as s:
         c = 0
         while True:
             content = s.readline()
-            ts = time.monotonic()
-            mac, rssi, crc = content.rstrip().decode("ASCII").split(" ")
-
-            while len(crc) < 8:
-                crc = "0" + crc
-
-            try:
-                rssi = int(rssi)
-            except ValueError as exc:
-                error(f"ValueError: {exc}")
-            if len(mac) != 17:
-                error(f"Dropping weird packet from MAC {mac}!")
-
-            if len(args.filters) > 0:
-                if mac not in args.filters:
-                    continue
-
-            packet = Packet(rssi = rssi, timestamp = ts, port = path)
-            if args.verbose:
-                print(f"{mac}: {rssi} ({crc}) @ {ts:.6f}")
-
-            if mac not in STORAGE:
-                STORAGE[mac] = {}
-            if crc not in STORAGE[mac]:
-                STORAGE[mac][crc] = []
-            STORAGE[mac][crc].append(packet)
-
-            if len(STORAGE[mac][crc]) == len(args.ports):
-                calculate(STORAGE[mac][crc])
-                del STORAGE[mac][crc]
+            add_packet(content, args, path)
 
             c += 1
             if c >= args.counter > 0:
@@ -86,7 +111,7 @@ def setup() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "-v", "--version",
+        "-v", "--verbose",
         help = "print verbose information",
         dest = "verbose",
         action = "store_true"
@@ -144,6 +169,7 @@ def setup() -> argparse.ArgumentParser:
 
 if __name__ == "__main__":
     arguments = setup().parse_args()
+    TCPCollectionHandler.args = arguments
     if arguments.verbose:
         print(arguments)
 
