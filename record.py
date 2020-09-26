@@ -68,7 +68,7 @@ def main():
         traceback.print_exc()
 
     if os.path.exists(storage):
-        os.remove(storage)
+    	os.system("rm -f " + storage)
 
     with open("export.json", "w") as f:
         json.dump(client_list, f)
