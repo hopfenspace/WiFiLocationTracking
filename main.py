@@ -53,7 +53,7 @@ def add_packet(line: bytes, args: argparse.Namespace, name: str) -> typing.Optio
         del STORAGE[mac][crc]
 
 
-class TCPCollectionHandler(socketserver.BaseRequestHandler):
+class TCPCollectionHandler(socketserver.StreamRequestHandler):
     """
     The request handler class to collect data via network streams
     """
@@ -62,15 +62,12 @@ class TCPCollectionHandler(socketserver.BaseRequestHandler):
 
     def handle_one(self):
         print("{} wrote:".format(self.client_address[0]))
-        data = b" "
-        while b"\n" not in data:
-            print(f"'{data}'")
-            data += self.request.recv(8192)
-        data = data.strip()
-        print(f"\n\nFinal: '{data}'")
+        line = self.rfile.readline()
+        if line == b"":
+            return
 
         try:
-            add_packet(data, TCPCollectionHandler.args, str(self.server.server_address))
+            add_packet(line, TCPCollectionHandler.args, str(self.server.server_address))
         except ValueError:
             traceback.print_exc(file = sys.stderr)
 
