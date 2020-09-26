@@ -9,6 +9,7 @@ import json
 
 client_list = []
 
+
 class ClientInfo:
     def __init__(self):
         self.mac = ""
@@ -17,6 +18,7 @@ class ClientInfo:
 
     def __str__(self):
         return self.mac
+
 
 class ClientInfoHandler(xml.sax.ContentHandler):
     def __init__(self):
@@ -43,10 +45,14 @@ class ClientInfoHandler(xml.sax.ContentHandler):
         elif self.CurrentData == "last_signal_rssi":
             self.current_client.rssi = content
 
-if __name__ == "__main__":
-    s = subprocess.Popen(["airodump-ng", "--output-format", "netxml", "--bssid", "50:C7:BF:BA:F4:12", "-w" "export", "mon0"])
+
+def main():
+    s = subprocess.Popen(
+        ["airodump-ng", "--output-format", "netxml", "--bssid", "50:C7:BF:BA:F4:12", "-w" "export", "mon0"]
+    )
     time.sleep(3)
     os.system("kill -2 " + str(s.pid))
+
     parser = xml.sax.make_parser()
     parser.setFeature(xml.sax.handler.feature_namespaces, 0)
     handler = ClientInfoHandler()
@@ -57,3 +63,10 @@ if __name__ == "__main__":
     with open("export.json", "w") as f:
         json.dump(client_list, f)
 
+
+if __name__ == "__main__":
+    c = 1
+    while True:
+        print(f"Starting round {c}...")
+        main()
+        c += 1
