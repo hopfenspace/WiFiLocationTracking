@@ -55,6 +55,7 @@ def main():
     )
     time.sleep(3)
     os.system("kill -2 " + str(s.pid))
+    time.sleep(0.5)
 
     parser = xml.sax.make_parser()
     parser.setFeature(xml.sax.handler.feature_namespaces, 0)
