@@ -8,6 +8,7 @@ import argparse
 import functools
 import threading
 import collections
+import socketserver
 
 
 STORAGE = {}
@@ -17,6 +18,13 @@ Packet = collections.namedtuple("Packet", ["rssi", "timestamp", "port"])
 error = functools.partial(print, file = sys.stderr)
 
 
+class TCPCollectionHandler(socketserver.BaseRequestHandler):
+    """
+    The request handler class to collect data via network streams
+    """
+
+    def handle(self):
+        pass
 def collect(path: str, args: argparse.Namespace) -> None:
     with serial.Serial(path, args.baud) as s:
         c = 0
@@ -66,10 +74,10 @@ def calculate(packets: list) -> None:
 
 
 def start(func, path: str, args: argparse.Namespace) -> None:
-    t = threading.Thread(target= func, args = (path, args))
+    t = threading.Thread(target= func, args = (path, args), daemon = True)
     t.start()
     if args.verbose:
-        print(f"Thread {t} has been started on {path}.")
+        print(f"Thread {t} has been started on serial device {path}")
 
 
 def setup() -> argparse.ArgumentParser:
@@ -102,9 +110,18 @@ def setup() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "-p", "--port",
-        help = "specify the port(s) to listen too, may be used multiple times",
+        help = "specify the serial port(s) to listen to, may be used multiple times",
         dest = "ports",
         action = "append",
+        default = []
+    )
+
+    parser.add_argument(
+        "-n", "--network",
+        help = "specify the TCP port(s) to listen too, may be used multiple times",
+        dest = "network",
+        action = "append",
+        type = int,
         default = []
     )
 
@@ -130,8 +147,14 @@ if __name__ == "__main__":
     if arguments.verbose:
         print(arguments)
 
-    for p in arguments.ports:
-        start(collect, p, arguments)
+    for device in arguments.ports:
+        start(collect, device, arguments)
+    for port in arguments.network:
+        s = socketserver.ThreadingTCPServer(("0.0.0.0", port), TCPCollectionHandler)
+        process = threading.Thread(target = s.serve_forever, daemon = True)
+        process.start()
+        if arguments.verbose:
+            print(f"Server thread {process} has been started on {port}")
 
     if arguments.verbose:
         print(f"Thread list: {threading.enumerate()}")
