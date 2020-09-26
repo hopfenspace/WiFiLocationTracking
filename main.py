@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 import json
 import time
@@ -8,6 +9,7 @@ import argparse
 import functools
 import threading
 import traceback
+import subprocess
 import collections
 import socketserver
 
@@ -58,6 +60,7 @@ def add_packet(line: bytes, args: argparse.Namespace, name: str) -> typing.Optio
     except:
         pass
 
+
 class TCPCollectionHandler(socketserver.StreamRequestHandler):
     """
     The request handler class to collect data via network streams
@@ -94,6 +97,7 @@ def collect(path: str, args: argparse.Namespace) -> None:
 
     print(f"Exiting func for {path}")
 
+
 def calculate(mac: str, packets: list, args: argparse.Namespace) -> None:
     if len(packets) != 3:
         print(f"calculating a position is currently only implemented with 3 receivers")
@@ -119,6 +123,24 @@ def calculate(mac: str, packets: list, args: argparse.Namespace) -> None:
 
     if args.verbose:
         print(f"device {mac} is at {x} {y}")
+
+
+def insert_data(path: str) -> None:
+    pass
+
+
+def get_remote(ip: str, path: str):
+    while True:
+        try:
+            target = f"./export_{ip}.json"
+            if os.path.exists(target):
+                os.remove(target)
+            p = subprocess.Popen(["scp", f"pi@{ip}:{path}", target])
+            if os.path.exists(target):
+                insert_data(target)
+        except:
+            traceback.print_exc()
+
 
 def start(func, path: str, args: argparse.Namespace) -> None:
     t = threading.Thread(target=func, args=(path, args), daemon=True)
@@ -194,6 +216,20 @@ def setup() -> argparse.ArgumentParser:
         dest="json"
     )
 
+    parser.add_argument(
+        "-r", "--remote",
+        help="ip address(es) of the remote collector service(s) to be used by SSH",
+        dest="remotes",
+        action="append",
+        default=[]
+    )
+
+    parser.add_argument(
+        "-l", "--location",
+        help="location of the remotely stored JSON data storage file",
+        dest="location"
+    )
+
     return parser
 
 
@@ -211,6 +247,11 @@ if __name__ == "__main__":
         process.start()
         if arguments.verbose:
             print(f"Server thread {process} has been started on {port}")
+    for remote in arguments.remotes:
+        process = threading.Thread(target=get_remote, args=(remote, arguments.location), daemon=True)
+        process.start()
+        if arguments.verbose:
+            print(f"Remote collector thread {process} has been started for {remote}")
 
     if arguments.verbose:
         print(f"Thread list: {threading.enumerate()}")
