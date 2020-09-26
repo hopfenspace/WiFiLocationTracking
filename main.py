@@ -35,6 +35,10 @@ def collect(path: str, args: argparse.Namespace) -> None:
             if len(mac) != 17:
                 error(f"Dropping weird packet from MAC {mac}!")
 
+            if len(args.filters) > 0:
+                if mac not in args.filters:
+                    continue
+
             packet = Packet(rssi = rssi, timestamp = ts, port = path)
             if args.verbose:
                 print(f"{mac}: {rssi} ({crc}) @ {ts:.6f}")
@@ -86,6 +90,14 @@ def setup() -> argparse.ArgumentParser:
         dest = "baud",
         type = int,
         default = 115200
+    )
+
+    parser.add_argument(
+        "-f", "--filter",
+        help = "specify MAC addresses to filter against (white-list)",
+        dest = "filters",
+        action = "append",
+        default = []
     )
 
     parser.add_argument(
