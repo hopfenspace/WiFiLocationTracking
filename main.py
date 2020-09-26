@@ -3,7 +3,6 @@
 import sys
 import json
 import time
-import serial
 import typing
 import argparse
 import functools
@@ -11,6 +10,8 @@ import threading
 import traceback
 import collections
 import socketserver
+
+import serial
 
 
 STORAGE = {}
