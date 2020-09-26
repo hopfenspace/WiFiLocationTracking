@@ -5,6 +5,7 @@ import xml.sax
 import os
 import time
 import json
+import traceback
 
 
 client_list = []
@@ -47,6 +48,10 @@ class ClientInfoHandler(xml.sax.ContentHandler):
 
 
 def main():
+    storage = "export-01.kismet.netxml"
+    if os.path.exists(storage):
+        os.remove(storage)
+
     s = subprocess.Popen(
         ["airodump-ng", "--output-format", "netxml", "--bssid", "50:C7:BF:BA:F4:12", "-w" "export", "mon0"]
     )
@@ -57,9 +62,12 @@ def main():
     parser.setFeature(xml.sax.handler.feature_namespaces, 0)
     handler = ClientInfoHandler()
     parser.setContentHandler(handler)
-    parser.parse("export-01.kismet.netxml")
-    os.remove("export-01.kismet.netxml")
-    
+
+    try:
+        parser.parse(storage)
+    except xml.sax.SAXParseException:
+        traceback.print_exc()
+
     with open("export.json", "w") as f:
         json.dump(client_list, f)
 
