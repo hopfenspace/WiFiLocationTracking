@@ -135,7 +135,7 @@ def get_remote(ip: str, path: str):
             target = f"./export_{ip}.json"
             if os.path.exists(target):
                 os.remove(target)
-            p = subprocess.Popen(["scp", f"pi@{ip}:{path}", target])
+            p = subprocess.Popen(["scp", f"root@{ip}:{path}", target])
             if os.path.exists(target):
                 insert_data(target)
         except:

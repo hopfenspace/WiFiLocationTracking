@@ -49,8 +49,6 @@ class ClientInfoHandler(xml.sax.ContentHandler):
 
 def main():
     storage = "export-01.kismet.netxml"
-    if os.path.exists(storage):
-        os.remove(storage)
 
     s = subprocess.Popen(
         ["airodump-ng", "--output-format", "netxml", "--bssid", "50:C7:BF:BA:F4:12", "-w" "export", "mon0"]
@@ -67,6 +65,9 @@ def main():
         parser.parse(storage)
     except xml.sax.SAXParseException:
         traceback.print_exc()
+
+    if os.path.exists(storage):
+        os.remove(storage)
 
     with open("export.json", "w") as f:
         json.dump(client_list, f)
